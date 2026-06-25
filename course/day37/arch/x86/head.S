@@ -131,14 +131,24 @@ read_msr:
  * enter_user_mode_asm(rip) — 从内核切到 ring3
  * rip in %rdi(用户代码入口地址)
  */
-.globl enter_user_mode_asm
+	.globl enter_user_mode_asm
 enter_user_mode_asm:
-    pushq   $0x23                      /* SS = 用户数据段 */
-    pushq   $0x390000                  /* RSP = 用户栈(3.5MB, 避开 /init) */
-    pushq   $0x3202                    /* RFLAGS(IF=1, IOPL=3) */
-    pushq   $0x1B                      /* CS = 用户代码段 */
-    pushq   %rdi                       /* RIP = 用户入口 */
-    iretq
+	/* 禁用用户态 CET (避免 endbr64 指令 #GP) */
+	pushq   %rcx
+	pushq   %rax
+	movl    $0x6A0, %ecx             /* IA32_U_CET */
+	xorl    %eax, %eax
+	xorl    %edx, %edx
+	wrmsr
+	popq    %rax
+	popq    %rcx
+
+	pushq   $0x23                      /* SS = 用户数据段 */
+	pushq   $0x390000                  /* RSP = 用户栈(3.5MB, 避开 /init) */
+	pushq   $0x3202                    /* RFLAGS(IF=1, IOPL=3) */
+	pushq   $0x1B                      /* CS = 用户代码段 */
+	pushq   %rdi                       /* RIP = 用户入口 */
+	iretq
 
 /* ============================
  * 2. start64 — 64 位入口
