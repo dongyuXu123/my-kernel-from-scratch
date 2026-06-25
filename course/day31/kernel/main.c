@@ -1,45 +1,61 @@
 /*
- * kernel/main.c — Day 31: Day31特性
+ * kernel/main.c — Day 31 内核初始化
  *
  * 对照: reference/linux-7.1/init/main.c (start_kernel)
- *
- * 当天新增: Day31特性
  */
 #include "kernel.h"
 #include "mm.h"
+#include "sched.h"
+#include "module.h"
 
 extern void gdt_init(void), idt_init(void), tss_init(void);
-extern void serial_init(void), serial_puts(const char *);
-extern void pmm_init(void), buddy_init(void), slab_init(void);
-extern void setup_pagetables(void), cow_setup(void);
-extern void sched_init(void);
-extern void pic_remap(void), pit_init(unsigned int), pic_enable_irq(int);
-extern void pci_scan(void), e1000_init(void);
 extern void ramfs_init(void);
-extern int  ramfs_create(const char *), ramfs_write(int, const char *, int);
+extern int  ramfs_create(const char *name);
+extern int  ramfs_write(int fd, const char *buf, int len);
 extern void enter_user_mode_asm(void *);
+extern void fb_init(void), fb_puts(const char *);
+
+int gui_mode = 0;
 
 void start_kernel(void)
 {
     serial_init();
-    serial_puts("Hello from my kernel - Day 31\r\n");
+    serial_puts("Hello from my kernel - Day 31\n");
 
     gdt_init(); idt_init();
-    tss_init();
-    pmm_init(); buddy_init(); slab_init();
-    setup_pagetables();
+    pmm_init(); buddy_init(); slab_init(); setup_pagetables();
+    extern void cow_setup(void);
     cow_setup();
-    sched_init();
+    sched_init(); tss_init();
+    extern void pic_remap(void), pit_init(unsigned int), pic_enable_irq(int);
     pic_remap(); pit_init(100); pic_enable_irq(0);
+    extern void pci_scan(void), e1000_init(void);
     pci_scan(); e1000_init();
+    register_kernel_symbol("serial_puts", serial_puts);
+    register_kernel_symbol("print_hex64", print_hex64);
     ramfs_init();
     ramfs_create("hello.txt");
     ramfs_write(0, "Hello from ramfs!", 17);
-    /* 加载 /init 进入用户态 */
+    extern unsigned int *fb;
+    int console_boot = 0;
+    fb_init();
+    extern unsigned int *fb;
+    if (!console_boot && fb) {
+        gui_mode = 1;
+        extern void mouse_init(void), wm_init(void);
+        mouse_init(); wm_init();
+        extern void desktop_init(void), apps_init(void);
+        desktop_init(); apps_init();
+        extern int wm_create_window(int,int,int,int,const char*);
+        wm_create_window(50, 50, 320, 200, "Day 31");
+        while (1) { extern void mouse_poll(void), mouse_draw(void);
+            mouse_poll(); mouse_draw(); __asm__("hlt"); }
+    }
+    serial_puts("No framebuffer, starting console...\r\n");
     extern unsigned char init_elf_start[], init_elf_end[];
     extern unsigned long elf_load_mem(void *, unsigned int);
-    unsigned long entry = elf_load_mem(init_elf_start, (unsigned int)(init_elf_end - init_elf_start));
+    unsigned long entry = elf_load_mem(init_elf_start,
+                        (unsigned int)(init_elf_end - init_elf_start));
     if (entry) enter_user_mode_asm((void *)entry);
-
-    while (1) __asm__ volatile ("hlt");
+    while (1) { __asm__ volatile ("hlt"); }
 }
