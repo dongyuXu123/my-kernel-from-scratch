@@ -1,32 +1,25 @@
-*.o
-*.elf
-*.bin
-*.iso
-*.img
-*.swp
-*.swo
-*~
-.DS_Store
-__pycache__/
-/tmp/
-reference/linux-7.1/
-
 # Build artifacts
 *.o
 *.elf
 *.bin
 *.iso
 *.img
+*.out
 
-# Reference (clone separately)
-reference/linux-7.1/
-
-# QEMU artifacts
-/tmp/
-
-# Build artifacts (keep out of repo)
-mykernel.elf
-*.o
+# Empty placeholder files
+.gitkeep
 
 # Reference kernel (clone separately)
 reference/
+
+# Temporary files
+*.swp
+*.swo
+*~
+.DS_Store
+__pycache__/
+/tmp/
+
+# Initfs binaries (sources kept)
+mykernel/initfs/hello
+mykernel/initfs/init
