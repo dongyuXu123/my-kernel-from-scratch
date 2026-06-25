@@ -183,12 +183,12 @@ int handle_cow_fault(unsigned long cr2)
         return -1;
     }
 
-    /* 按需映射: 用户堆/glibc区域 (2MB 大页) */
-    if (cr2 >= 0x500000 && cr2 < 0x8000000) {
+    /* 按需映射: 2MB大页覆盖任何用户空间地址 */
+    if (cr2 >= 0x200000) {
         unsigned long base = cr2 & ~0x1FFFFFUL;
         unsigned long pd_idx = base >> 21;
-        if (pd_idx < 64 && (pd[pd_idx] & 1) == 0) {
-            pd[pd_idx] = base | 0x87;
+        if (pd_idx < 512 && (pd[pd_idx] & 1) == 0) {
+            pd[pd_idx] = base | 0x87;  /* 2MB huge, U/S=1, W=1 */
             write_cr3((unsigned long)pml4);
         }
         return 0;
