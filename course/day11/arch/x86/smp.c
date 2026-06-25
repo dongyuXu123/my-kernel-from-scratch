@@ -53,7 +53,7 @@ void smp_init(void)
 
     serial_puts("SMP: trampoline at 0x7000, ");
     print_hex64(ncpus);
-    serial_puts(" cpus\r\n");
+    serial_puts(" cpus (IPI ready, send via ICR 0xFEE00300)\r\n");
 }
 
 void apic_init(void)
