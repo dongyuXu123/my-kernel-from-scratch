@@ -440,6 +440,11 @@ timer_handler:
 	/* 每 tick 轮询 e1000 RX */
 	call    e1000_poll
 
+	/* 抢占调度: 仅在 sched_ready=1 时启用 */
+	movq    sched_ready(%rip), %rdx
+	testq   %rdx, %rdx
+	jz      1f
+
 	/* 每 10 ticks 做一次调度 (100Hz → 10Hz 调度频率) */
 	movq    timer_ticks(%rip), %rdx
 	andq    $0x07, %rdx                  /* ticks % 8 != 0 → 跳过 */
@@ -472,6 +477,8 @@ timer_handler:
 .align 8
 .globl timer_ticks
 timer_ticks: .quad 0
+	.globl sched_ready
+sched_ready: .quad 0
 
 /* worker 任务内核栈 */
 .align 16

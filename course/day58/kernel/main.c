@@ -238,6 +238,8 @@ void start_kernel(void)
         serial_puts(" bytes)...\r\n");
         unsigned long entry = elf_load_mem(busybox_elf_start, (unsigned int)bbsize);
         if (entry) {
+            extern unsigned long sched_ready;
+            sched_ready = 1;
             serial_puts("BusyBox entry=");
             print_hex64(entry);
             serial_puts("\r\n");
@@ -249,6 +251,10 @@ void start_kernel(void)
     extern unsigned char init_elf_start[], init_elf_end[];
     unsigned long entry = elf_load_mem(init_elf_start,
                         (unsigned int)(init_elf_end - init_elf_start));
-    if (entry) enter_user_mode_asm((void *)entry);
+    if (entry) {
+        extern unsigned long sched_ready;
+        sched_ready = 1;
+        enter_user_mode_asm((void *)entry);
+    }
     while (1) { __asm__ volatile ("hlt"); }
 }
