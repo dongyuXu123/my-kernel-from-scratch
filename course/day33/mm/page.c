@@ -32,19 +32,15 @@ void setup_pagetables(void)
     pml4[0] |= 0x04;
     pdp[0] |= 0x04;
 
-	/* 第三步: PD[0] 从 2MB 大页切换为 PT 指针 */
+	/* 第三步: PD[0..63] = 2MB huge pages (0-128MB identity) */
 	pd[0] = (unsigned long)pt | 0x07;   /* PS=0: 指向 PT, U/S=1 */
-	pd[1] = 0x200087;                    /* 2MB huge page @ 2MB, U/S=1 */
-	pd[2] = 0x400087;                    /* 2MB huge page @ 4MB, U/S=1 */
-	pd[3] = 0x600087;                    /* 2MB huge page @ 6MB, U/S=1 */
-	pd[4] = 0x800087;                    /* 2MB huge page @ 8MB, U/S=1 */
-	pd[5] = 0xA00087;                    /* 2MB huge page @ 10MB, U/S=1 */
-	pd[6] = 0xC00087;                    /* 2MB huge page @ 12MB, U/S=1 */
-	pd[7] = 0xE00087;                    /* 2MB huge page @ 14MB, U/S=1 */
+	for (int i = 1; i < 64; i++) {
+	    pd[i] = (i * 0x200000) | 0x87;  /* 2MB huge page, U/S=1 */
+	}
 
 	/* 第四步: CR3 刷新 */
 	write_cr3((unsigned long)pml4);
-	serial_puts("page: identity mapped 0-16MB\r\n");
+	serial_puts("page: identity mapped 0-128MB\r\n");
 }
 
 /* ================================================================
