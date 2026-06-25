@@ -105,105 +105,89 @@ unsigned long clone_kernel_pml4(void)
  *
  * 对照: reference/linux-7.1/mm/memory.c (copy_page_range, do_wp_page)
  *
- * 简化实现: 对用户空间第一个 4KB 页(0x300000)做 COW
- * cow_page_ref: 物理页引用计数 (1=独占, >1=共享只读)
+ * 支持多页: 用户空间 0x300000-0x400000 (64 页 × 4KB)
+ * cow_refs[i]: 第 i 页的引用计数
  * ================================================================ */
 
-static int cow_page_ref = 0;       /* 引用计数 */
-static unsigned long cow_phys = 0;  /* COW 物理页地址 */
-static unsigned long cow_pte_idx = 0; /* COW 页在 new_pt 中的索引 */
+#define COW_START_VA  0x300000
+#define COW_PAGES     64              /* 64 pages = 256KB user space */
+#define COW_PTE_BASE  ((COW_START_VA - 0x200000) / 0x1000)  /* PTE index in PT */
 
-/* cow_setup — 将用户区从 2MB 大页切换为 4KB 页, 设置 COW */
+static int cow_refs[COW_PAGES];       /* 每页引用计数 */
+static unsigned long *cow_pt;         /* 用户空间 PT 页指针 */
+
+/* cow_setup — 将用户区从 2MB 大页切换为 4KB 页, 初始化 COW */
 void cow_setup(void)
 {
     extern void *alloc_page(void);
+    cow_pt = (unsigned long *)alloc_page();
+    if (!cow_pt) return;
 
-    /* 分配一个新的 PT 页给 2MB-4MB 区域 */
-    unsigned long *new_pt = (unsigned long *)alloc_page();
-    if (!new_pt) return;
-
-    /* 填充 4KB 身份映射 (512 个条目, 覆盖 2MB-4MB) */
-    for (int i = 0; i < 512; i++) {
-        new_pt[i] = (0x200000 + i * 0x1000) | 0x07;  /* P=1 W=1 U/S=1 */
-    }
+    /* 填充 4KB 身份映射 (512 条目, 覆盖 2MB-4MB) */
+    for (int i = 0; i < 512; i++)
+        cow_pt[i] = (0x200000 + i * 0x1000) | 0x07;
 
     /* 切换 pd[1] 从 2MB 大页 → PT 指针 */
-    pd[1] = (unsigned long)new_pt | 0x07;  /* PS=0, P=1 W=1 U/S=1 */
+    pd[1] = (unsigned long)cow_pt | 0x07;
 
-    /* 用户空间 0x300000 = new_pt 中的索引 256 */
-    cow_pte_idx = (0x300000 - 0x200000) / 0x1000;  /* = 256 */
-    cow_phys = new_pt[cow_pte_idx] & ~0xFFFUL;     /* = 0x300000 */
-    cow_page_ref = 1;
+    /* 初始化引用计数 (用户区 64 页) */
+    for (int i = 0; i < COW_PAGES; i++)
+        cow_refs[i] = 1;  /* 独占 */
 
-    /* 刷新 TLB */
     write_cr3((unsigned long)pml4);
-
-    serial_puts("cow: setup va=0x300000 phys=");
-    print_hex64(cow_phys);
-    serial_puts(" pte_idx=");
-    print_hex64(cow_pte_idx);
-    serial_puts(" ref=1\r\n");
+    serial_puts("cow: setup ");
+    print_hex64(COW_PAGES);
+    serial_puts(" pages at ");
+    print_hex64(COW_START_VA);
+    serial_puts("\r\n");
 }
 
-/* cow_fork_handler — fork 时标记用户页为只读, 增加引用计数 */
+/* cow_fork_handler — fork 时标记所有用户页为只读 */
 void cow_fork_handler(void)
 {
-    if (cow_page_ref == 0) return;
+    if (!cow_pt) return;
 
-    /* 获取用户空间 PT */
-    unsigned long *user_pt = (unsigned long *)(pd[1] & ~0xFFFUL);
+    for (int i = 0; i < COW_PAGES; i++) {
+        cow_pt[COW_PTE_BASE + i] &= ~2UL;  /* 清除 Writable */
+        cow_refs[i] = 2;                    /* 父子共享 */
+    }
 
-    /* 父进程 PTE: 清除 Writable 位 (bit 1) */
-    user_pt[cow_pte_idx] &= ~2UL;   /* 变为只读 */
-    cow_page_ref = 2;               /* 父子共享 */
-
-    /* 刷新 TLB */
     write_cr3((unsigned long)pml4);
-
-    serial_puts("cow: fork done, ref=2, PTE read-only\r\n");
+    serial_puts("cow: fork done, ");
+    print_hex64(COW_PAGES);
+    serial_puts(" pages read-only\r\n");
 }
 
-/* handle_cow_fault — #PF 时处理 COW (由 entry.S pf_handler 调用)
- * cr2: 缺页地址
- * 返回: 0=已处理(可重试), -1=无法处理
- */
+/* handle_cow_fault — #PF 时处理 COW */
 int handle_cow_fault(unsigned long cr2)
 {
-    /* 只处理用户空间 COW 区域 (0x300000 - 0x301000) */
-    if (cr2 < 0x300000 || cr2 >= 0x301000 || cow_page_ref <= 1)
-        return -1;  /* 不是 COW 页或不需要复制 */
+    if (!cow_pt) return -1;
+    if (cr2 < COW_START_VA || cr2 >= COW_START_VA + COW_PAGES * 0x1000)
+        return -1;
 
-    /* 获取用户空间 PT */
-    unsigned long *user_pt = (unsigned long *)(pd[1] & ~0xFFFUL);
-    unsigned long old_pte = user_pt[cow_pte_idx];
-    unsigned long old_phys = old_pte & ~0xFFFUL;
+    int page_idx = (cr2 - 0x200000) / 0x1000 - COW_PTE_BASE;
+    if (page_idx < 0 || page_idx >= COW_PAGES) return -1;
+    if (cow_refs[page_idx] <= 1) return -1;  /* 已独占 */
 
-    /* 分配新物理页 */
+    int pte_idx = COW_PTE_BASE + page_idx;
+    unsigned long old_phys = cow_pt[pte_idx] & ~0xFFFUL;
+
+    /* 分配新页 + 拷贝 */
     extern void *alloc_page(void);
     unsigned long *new_page = (unsigned long *)alloc_page();
     if (!new_page) return -1;
 
-    /* 拷贝旧页内容到新页 */
     unsigned long *old_page = (unsigned long *)old_phys;
-    for (int i = 0; i < 512; i++)
-        new_page[i] = old_page[i];
+    for (int i = 0; i < 512; i++) new_page[i] = old_page[i];
 
-    /* 更新 PTE: 指向新页, Writable=1 */
-    user_pt[cow_pte_idx] = (unsigned long)new_page | 0x07;
-
-    /* 减少旧页引用计数 */
-    cow_page_ref--;
-
-    /* 刷新 TLB */
+    cow_pt[pte_idx] = (unsigned long)new_page | 0x07;
+    cow_refs[page_idx]--;
     write_cr3((unsigned long)pml4);
 
-    serial_puts("cow: fault handled, old_phys=");
-    print_hex64(old_phys);
-    serial_puts(" new_phys=");
-    print_hex64((unsigned long)new_page);
-    serial_puts(" ref=");
-    print_hex64(cow_page_ref);
+    serial_puts("cow: page ");
+    print_hex64(page_idx);
+    serial_puts(" copied, ref=");
+    print_hex64(cow_refs[page_idx]);
     serial_puts("\r\n");
-
-    return 0;  /* 成功 */
+    return 0;
 }

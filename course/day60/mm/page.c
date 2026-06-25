@@ -99,3 +99,95 @@ unsigned long clone_kernel_pml4(void)
 
     return new_pa;
 }
+
+/* ================================================================
+ * COW (Copy-on-Write) — Day 46
+ *
+ * 对照: reference/linux-7.1/mm/memory.c (copy_page_range, do_wp_page)
+ *
+ * 支持多页: 用户空间 0x300000-0x400000 (64 页 × 4KB)
+ * cow_refs[i]: 第 i 页的引用计数
+ * ================================================================ */
+
+#define COW_START_VA  0x300000
+#define COW_PAGES     64              /* 64 pages = 256KB user space */
+#define COW_PTE_BASE  ((COW_START_VA - 0x200000) / 0x1000)  /* PTE index in PT */
+
+static int cow_refs[COW_PAGES];       /* 每页引用计数 */
+static unsigned long *cow_pt;         /* 用户空间 PT 页指针 */
+
+/* cow_setup — 将用户区从 2MB 大页切换为 4KB 页, 初始化 COW */
+void cow_setup(void)
+{
+    extern void *alloc_page(void);
+    cow_pt = (unsigned long *)alloc_page();
+    if (!cow_pt) return;
+
+    /* 填充 4KB 身份映射 (512 条目, 覆盖 2MB-4MB) */
+    for (int i = 0; i < 512; i++)
+        cow_pt[i] = (0x200000 + i * 0x1000) | 0x07;
+
+    /* 切换 pd[1] 从 2MB 大页 → PT 指针 */
+    pd[1] = (unsigned long)cow_pt | 0x07;
+
+    /* 初始化引用计数 (用户区 64 页) */
+    for (int i = 0; i < COW_PAGES; i++)
+        cow_refs[i] = 1;  /* 独占 */
+
+    write_cr3((unsigned long)pml4);
+    serial_puts("cow: setup ");
+    print_hex64(COW_PAGES);
+    serial_puts(" pages at ");
+    print_hex64(COW_START_VA);
+    serial_puts("\r\n");
+}
+
+/* cow_fork_handler — fork 时标记所有用户页为只读 */
+void cow_fork_handler(void)
+{
+    if (!cow_pt) return;
+
+    for (int i = 0; i < COW_PAGES; i++) {
+        cow_pt[COW_PTE_BASE + i] &= ~2UL;  /* 清除 Writable */
+        cow_refs[i] = 2;                    /* 父子共享 */
+    }
+
+    write_cr3((unsigned long)pml4);
+    serial_puts("cow: fork done, ");
+    print_hex64(COW_PAGES);
+    serial_puts(" pages read-only\r\n");
+}
+
+/* handle_cow_fault — #PF 时处理 COW */
+int handle_cow_fault(unsigned long cr2)
+{
+    if (!cow_pt) return -1;
+    if (cr2 < COW_START_VA || cr2 >= COW_START_VA + COW_PAGES * 0x1000)
+        return -1;
+
+    int page_idx = (cr2 - 0x200000) / 0x1000 - COW_PTE_BASE;
+    if (page_idx < 0 || page_idx >= COW_PAGES) return -1;
+    if (cow_refs[page_idx] <= 1) return -1;  /* 已独占 */
+
+    int pte_idx = COW_PTE_BASE + page_idx;
+    unsigned long old_phys = cow_pt[pte_idx] & ~0xFFFUL;
+
+    /* 分配新页 + 拷贝 */
+    extern void *alloc_page(void);
+    unsigned long *new_page = (unsigned long *)alloc_page();
+    if (!new_page) return -1;
+
+    unsigned long *old_page = (unsigned long *)old_phys;
+    for (int i = 0; i < 512; i++) new_page[i] = old_page[i];
+
+    cow_pt[pte_idx] = (unsigned long)new_page | 0x07;
+    cow_refs[page_idx]--;
+    write_cr3((unsigned long)pml4);
+
+    serial_puts("cow: page ");
+    print_hex64(page_idx);
+    serial_puts(" copied, ref=");
+    print_hex64(cow_refs[page_idx]);
+    serial_puts("\r\n");
+    return 0;
+}
