@@ -92,6 +92,7 @@ struct ext2_dir_entry {
 #define EXT2_INODE_SIZE   128
 #define S_IFDIR  0x4000
 #define S_IFREG  0x8000
+#define S_IFLNK  0xA000
 
 /* ================================================================
  * 内部状态
@@ -493,4 +494,92 @@ int ext2_write_file(unsigned int ino, const void *buf, unsigned int offset, unsi
     ext2_write_inode(ino, &inode);
 
     return (int)(len - remaining);
+}
+
+/* ================================================================
+ * Day 50: 间接块 + 符号链接 + 文件删除
+ *
+ * 对照: reference/linux-7.1/fs/ext2/inode.c (ext2_get_block)
+ *       reference/linux-7.1/fs/ext2/symlink.c (ext2_symlink)
+ * ================================================================ */
+
+/* ext2_get_block — 获取/分配逻辑块 (支持间接块) */
+unsigned int ext2_get_block(struct ext2_inode *inode, unsigned int idx, int alloc)
+{
+    if (idx < 12) {
+        if (alloc && inode->i_block[idx] == 0)
+            inode->i_block[idx] = ext2_balloc();
+        return inode->i_block[idx];
+    }
+    idx -= 12;
+    if (idx < 256) {
+        if (inode->i_block[12] == 0) {
+            if (!alloc) return 0;
+            inode->i_block[12] = ext2_balloc();
+        }
+        unsigned int buf[256];
+        ext2_read_block(inode->i_block[12], buf);
+        if (buf[idx] == 0 && alloc) {
+            buf[idx] = ext2_balloc();
+            ext2_write_block(inode->i_block[12], buf);
+        }
+        return buf[idx];
+    }
+    return 0;
+}
+
+/* ext2_symlink — 快速符号链接 (≤60 字节) */
+int ext2_symlink(const char *target, const char *linkname)
+{
+    int nlen = 0;
+    while (target[nlen]) nlen++;
+    if (nlen > 60) return -1;
+
+    unsigned int ino = ext2_ialloc(S_IFLNK | 0755);
+    if (!ino) return -1;
+
+    struct ext2_inode inode;
+    for (int i = 0; i < sizeof(inode); i++) ((char *)&inode)[i] = 0;
+    inode.i_mode  = S_IFLNK | 0755;
+    inode.i_links_count = 1;
+    inode.i_size  = nlen;
+    for (int i = 0; i < nlen; i++)
+        ((char *)inode.i_block)[i] = target[i];
+    ext2_write_inode(ino, &inode);
+
+    return ext2_create(linkname, S_IFLNK | 0755);
+}
+
+/* ext2_unlink — 删除文件 */
+int ext2_unlink(const char *name)
+{
+    int ino = ext2_lookup(2, name);
+    if (ino <= 0) return -1;
+
+    struct ext2_inode inode;
+    if (ext2_read_inode(ino, &inode) < 0) return -1;
+
+    /* 释放直接块 */
+    for (int i = 0; i < 12; i++) {
+        if (inode.i_block[i]) {
+            unsigned char bm[EXT2_BLOCK_SIZE];
+            ext2_read_block(ext2_gdesc[0].bg_block_bitmap, bm);
+            int byte = inode.i_block[i] / 8, bit = inode.i_block[i] % 8;
+            bm[byte] &= ~(1 << bit);
+            ext2_write_block(ext2_gdesc[0].bg_block_bitmap, bm);
+            ext2_free_blocks++;
+        }
+    }
+
+    /* 释放 inode */
+    unsigned char ibm[EXT2_BLOCK_SIZE];
+    ext2_read_block(ext2_gdesc[0].bg_inode_bitmap, ibm);
+    int byte = (ino - 1) / 8, bit = (ino - 1) % 8;
+    ibm[byte] &= ~(1 << bit);
+    ext2_write_block(ext2_gdesc[0].bg_inode_bitmap, ibm);
+    ext2_free_inodes++;
+
+    serial_puts("ext2_unlink: "); serial_puts(name);
+    serial_puts(" done\r\n");
+    return 0;
 }

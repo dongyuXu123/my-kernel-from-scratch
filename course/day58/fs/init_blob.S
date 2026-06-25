@@ -8,6 +8,6 @@
 .align 8
 .globl init_elf_start
 init_elf_start:
-.incbin "initfs/init"
+.incbin "../initfs/init"
 .globl init_elf_end
 init_elf_end:
