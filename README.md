@@ -1,5 +1,7 @@
 # 🐧 MyKernel — Linux 内核从零手写
 
+> **由 DeepSeek 辅助生成与调试，仅供个人 Linux 内核学习使用**
+
 [![Build](https://img.shields.io/badge/build-60/60%20days-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 [![Lines](https://img.shields.io/badge/code-~10000%20lines-orange)]()
