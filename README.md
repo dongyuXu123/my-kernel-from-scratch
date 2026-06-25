@@ -1,6 +1,6 @@
 # 🐧 MyKernel — Linux 内核从零手写
 
-> **由 DeepSeek 辅助生成与调试，仅供个人 Linux 内核学习使用**
+> ⚠️ **本课程全部由 DeepSeek 辅助生成与调试，仅供个人 Linux 内核学习使用，准确性有待考证。**
 
 [![Build](https://img.shields.io/badge/build-60/60%20days-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
