@@ -1,4 +1,8 @@
 /*
+ * initfs/syscalls.c — 用户态 syscall 包装
+ *
+ * 对照: (用户态包装 — Linux x86-64 syscall ABI)
+ */
  * initfs/syscalls.c — syscall 包装函数 (Day 57)
  *
  * 为 newlib/用户态 C 程序提供 Linux-like syscall 接口

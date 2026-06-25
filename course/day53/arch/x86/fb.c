@@ -1,4 +1,8 @@
-/* arch/x86/fb.c — Framebuffer 控制台 (Day 35) */
+/*
+ * arch/x86/fb.c — Framebuffer 控制台
+ *
+ * 对照: (无直接对照 — Linux 内核无内置 GUI/Framebuffer 控制台)
+ */
 #include "kernel.h"
 
 unsigned int *fb;      /* framebuffer 地址 */

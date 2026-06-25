@@ -1,5 +1,13 @@
-/* arch/x86/apps.c — GUI 应用程序 (Day 35 GUI-5)
- * 计算器、文本编辑器、文件浏览器
+/*
+ * arch/x86/apps.c — GUI 应用程序
+ *
+ * 对照: (无直接对照 — MVC Pattern, Windows Calculator/Notepad)
+ */
+/*
+ * arch/x86/apps.c — GUI 应用程序
+ *
+ * 对照: (无直接对照 — MVC Pattern, Windows Calculator/Notepad)
+ */
  */
 #include "kernel.h"
 
