@@ -58,9 +58,13 @@ void smp_init(void)
 
 void apic_init(void)
 {
+    /* 映射 APIC MMIO (0xFEE00000) */
+    extern void map_mmio(unsigned long);
+    map_mmio(APIC_BASE);
+
     /* 启用 Local APIC (SVR bit 8) */
     unsigned int *apic_svr = (unsigned int *)(unsigned long)(APIC_BASE + 0xF0);
-    *apic_svr = (*apic_svr & 0xFFFFFF00) | 0x1FF;  /* vector 0xFF, enabled */
+    *apic_svr = (*apic_svr & 0xFFFFFF00) | 0x1FF;
     serial_puts("APIC: enabled\r\n");
 }
 

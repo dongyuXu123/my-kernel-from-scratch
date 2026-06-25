@@ -37,10 +37,6 @@ void pmm_init(void)
     heap_addr = heap;
     heap_end_val = heap_end;
 
-    serial_puts("pmm: heap="); print_hex64(heap);
-    serial_puts(" end="); print_hex64(heap_end);
-    serial_puts("\r\n");
-
     /* 总页数 */
     total_pages = (unsigned int)(heap_end >> PAGE_SHIFT);
     free_page_cnt = total_pages;

@@ -7,7 +7,8 @@
 #include "kernel.h"
 
 /* TCP 状态 */
-enum { TCP_CLOSED, TCP_SYN_SENT, TCP_ESTABLISHED, TCP_LAST_ACK };
+enum { TCP_CLOSED, TCP_LISTEN, TCP_SYN_SENT, TCP_SYN_RCVD,
+       TCP_ESTABLISHED, TCP_LAST_ACK };
 
 /* TCP 首部 */
 struct tcp_hdr {
@@ -90,6 +91,13 @@ void tcp_connect(void)
     serial_puts("TCP: SYN sent\r\n");
 }
 
+/* tcp_listen — 服务器模式: 监听端口 80 */
+void tcp_listen(void)
+{
+    tcp_state = TCP_LISTEN;
+    serial_puts("TCP: listening on port 80\r\n");
+}
+
 void tcp_input(void *packet, int len)
 {
     if (len < 54) return; /* ETH+IP+TCP */
@@ -97,6 +105,25 @@ void tcp_input(void *packet, int len)
     unsigned int seq = htonl(tcp->seq), ack = htonl(tcp->ack);
 
     switch (tcp_state) {
+    case TCP_LISTEN:
+        if (tcp->flags & TCP_SYN) {
+            /* 收到 SYN → 回复 SYN-ACK */
+            tcp_irs = seq;
+            tcp_rcv_nxt = seq + 1;
+            tcp_send_raw(TCP_SYN|TCP_ACK, tcp_iss, tcp_rcv_nxt, 0, 0);
+            tcp_snd_nxt = tcp_iss + 1;
+            tcp_state = TCP_SYN_RCVD;
+            serial_puts("TCP: SYN-ACK sent (server)\r\n");
+        }
+        break;
+    case TCP_SYN_RCVD:
+        if (tcp->flags & TCP_ACK) {
+            tcp_state = TCP_ESTABLISHED;
+            serial_puts("TCP: established (server)\r\n");
+            extern void http_server_start(void);
+            http_server_start();
+        }
+        break;
     case TCP_SYN_SENT:
         if ((tcp->flags & (TCP_SYN|TCP_ACK)) == (TCP_SYN|TCP_ACK)) {
             tcp_irs = seq; tcp_rcv_nxt = seq + 1;

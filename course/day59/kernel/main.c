@@ -149,9 +149,21 @@ void start_kernel(void)
     extern void e1000_init(void);
     e1000_init();
 
-    /* TCP 连接测试 */
-    extern void tcp_connect(void);
-    tcp_connect();
+    /* TCP 服务器模式 (监听 port 80) */
+    extern void tcp_listen(void);
+    tcp_listen();
+
+    /* DHCP 客户端 */
+    extern void dhcp_init(void);
+    dhcp_init();
+    extern void dhcp_discover(void);
+    dhcp_discover();
+
+    /* SMP 多核 */
+    extern void smp_init(void);
+    smp_init();
+    extern void apic_init(void);
+    apic_init();
 
     /* ramfs */
     ramfs_init();
