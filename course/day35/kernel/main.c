@@ -124,7 +124,7 @@ void start_kernel(void)
     serial_puts("Hello from my kernel\r\n");
 
     gdt_init(); idt_init();
-    pmm_init(); buddy_init(); slab_init(); setup_pagetables();
+    pmm_init(); setup_pagetables(); buddy_init(); slab_init();
     extern void cow_setup(void);
     cow_setup();  /* Day 46: COW 初始化 */
     sched_init(); tss_init();
@@ -228,9 +228,25 @@ void start_kernel(void)
     /* 无 framebuffer 时回退到 console 模式 */
     serial_puts("No framebuffer, starting console mode...\r\n");
 
+    /* 尝试加载 BusyBox (如果存在) */
+    extern unsigned char busybox_elf_start[], busybox_elf_end[];
+    extern unsigned long elf_load_mem(void *, unsigned int);
+    unsigned long bbsize = (unsigned long)(busybox_elf_end - busybox_elf_start);
+    if (bbsize > 1024) {
+        serial_puts("Loading BusyBox (");
+        print_hex64(bbsize);
+        serial_puts(" bytes)...\r\n");
+        unsigned long entry = elf_load_mem(busybox_elf_start, (unsigned int)bbsize);
+        if (entry) {
+            serial_puts("BusyBox entry=");
+            print_hex64(entry);
+            serial_puts("\r\n");
+            enter_user_mode_asm((void *)entry);
+        }
+    }
+
     /* 加载 /init */
     extern unsigned char init_elf_start[], init_elf_end[];
-    extern unsigned long elf_load_mem(void *, unsigned int);
     unsigned long entry = elf_load_mem(init_elf_start,
                         (unsigned int)(init_elf_end - init_elf_start));
     if (entry) enter_user_mode_asm((void *)entry);

@@ -17,9 +17,13 @@ extern int ramfs_read_file(const char *name, char *buf, int maxlen);
 /* ELF 加载器 */
 extern unsigned long elf_load_mem(void *data, unsigned int len);
 
-#define EXEC_BUF_SIZE 262144  /* 256KB max ELF (Day 47: from 64KB) */
+#define EXEC_BUF_SIZE (2 * 1024 * 1024)  /* 2MB (Day 47+: BusyBox 兼容) */
 
-static char exec_buf[EXEC_BUF_SIZE];
+/* 使用 buddy 分配器动态分配 exec 缓冲区 */
+extern void *alloc_pages(int order);  /* buddy alloc: 2^order pages */
+extern void free_pages(void *ptr);
+
+static char *exec_buf = 0;
 
 /*
  * do_sys_exec — 由 entry.S 调用
@@ -41,6 +45,12 @@ static char exec_buf[EXEC_BUF_SIZE];
  */
 unsigned long do_sys_exec(const char *filename)
 {
+    /* 动态分配 exec 缓冲区 (2MB) */
+    if (!exec_buf) {
+        exec_buf = (char *)alloc_pages(9);  /* 2^9 = 512 pages = 2MB */
+        if (!exec_buf) return 0;
+    }
+
     /* 读文件内容 */
     int n = ramfs_read_file(filename, exec_buf, EXEC_BUF_SIZE);
     if (n <= 0) {

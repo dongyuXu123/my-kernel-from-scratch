@@ -1,20 +1,21 @@
 /*
- * fs/elf.c — 最小 ELF 加载器(x86-64, 静态链接)
+ * fs/elf.c — ELF 加载器 (x86-64, 静态 + PIE)
  *
  * 对照: reference/linux-7.1/fs/binfmt_elf.c (load_elf_binary)
  *
- * 简化: 只支持 ET_EXEC(静态), 对每个 PT_LOAD 直接复制段到目标地址
+ * Day 47: 添加 ET_DYN (PIE) 支持
  */
 
 #include "kernel.h"
 
-/* -------- ELF 类型(uapi/linux/elf.h) -------- */
+/* -------- ELF 类型 -------- */
 #define ELFMAG0    0x7F
 #define ELFMAG1    'E'
 #define ELFMAG2    'L'
 #define ELFMAG3    'F'
 #define ELFCLASS64 2
 #define ET_EXEC    2
+#define ET_DYN     3     /* Day 47: PIE/共享对象 */
 #define EM_X86_64  62
 #define PT_LOAD    1
 
@@ -61,12 +62,13 @@ unsigned long elf_load_mem(void *data, unsigned int len)
 
     struct elf64_hdr *ehdr = (struct elf64_hdr *)data;
 
-    if (ehdr->e_ident[0] != ELFMAG0 || ehdr->e_ident[1] != ELFMAG1 ||
-        ehdr->e_ident[2] != ELFMAG2 || ehdr->e_ident[3] != ELFMAG3 ||
-        ehdr->e_ident[4] != ELFCLASS64 ||
-        ehdr->e_type != ET_EXEC || ehdr->e_machine != EM_X86_64) {
-        return 0;
-    }
+	if (ehdr->e_ident[0] != ELFMAG0 || ehdr->e_ident[1] != ELFMAG1 ||
+	    ehdr->e_ident[2] != ELFMAG2 || ehdr->e_ident[3] != ELFMAG3 ||
+	    ehdr->e_ident[4] != ELFCLASS64 ||
+	    (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) ||
+	    ehdr->e_machine != EM_X86_64) {
+	    return 0;
+	}
 
     serial_puts("elf: entry=");
     print_hex64(ehdr->e_entry);

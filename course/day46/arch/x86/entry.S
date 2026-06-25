@@ -135,33 +135,35 @@ serial_putchar_asm:
  * 进入时栈上(CPU 自动压入):
  *   SS, RSP_ring3, RFLAGS, CS, RIP
  *
- * 分派: rax=1(fork), 3(open), 5(write), 其他(默认)
+ * Linux x86-64 syscall 兼容 (Day 45+):
+ *   0=read, 1=write, 2=open, 3=close, 8=lseek, 9=mmap, 12=brk
+ *   39=getpid, 57=fork, 59=execve, 60=exit
  * ================================================================ */
 	.globl syscall_entry
 syscall_entry:
 	push    %rax
-	/* 检查 syscall 号(%rax, 现在是 (%rsp)) */
-	cmpq    $0, (%rsp); je  .do_read
-	cmpq    $1, (%rsp); je  .do_fork
-	cmpq    $3, (%rsp); je  .do_open
-	cmpq    $4, (%rsp); je  .do_write
-	cmpq    $5, (%rsp); je  .do_write   /* 兼容旧 write=5 */
-	cmpq    $6, (%rsp); je  .do_list    /* ramfs list */
-	cmpq    $7, (%rsp); je  .do_cat     /* ramfs cat */
-	cmpq    $8, (%rsp); je  .do_exec    /* exec */
-	cmpq    $9, (%rsp); je  .do_insmod  /* insmod */
-	cmpq    $10, (%rsp); je .do_writeto /* writeto */
-	cmpq    $11, (%rsp); je .do_pipe    /* pipe */
-	cmpq    $12, (%rsp); je .do_dup2    /* dup2 */
-	cmpq    $13, (%rsp); je .do_signal   /* signal */
-	cmpq    $14, (%rsp); je .do_kill     /* kill */
-	cmpq    $15, (%rsp); je .do_close    /* close */
-	cmpq    $16, (%rsp); je .do_lseek    /* lseek */
-	cmpq    $17, (%rsp); je .do_fstat    /* fstat */
-	cmpq    $18, (%rsp); je .do_getpid   /* getpid */
-	cmpq    $19, (%rsp); je .do_waitpid  /* waitpid */
-	cmpq    $20, (%rsp); je .do_brk      /* brk */
-	cmpq    $60, (%rsp); je .do_exit2    /* exit (POSIX) */
+	/* Linux-compatible dispatch */
+	cmpq    $0, (%rsp);  je .do_read     /* read */
+	cmpq    $1, (%rsp);  je .do_write    /* write */
+	cmpq    $2, (%rsp);  je .do_open     /* open */
+	cmpq    $3, (%rsp);  je .do_close    /* close */
+	cmpq    $5, (%rsp);  je .do_fstat    /* fstat */
+	cmpq    $8, (%rsp);  je .do_lseek    /* lseek */
+	cmpq    $9, (%rsp);  je .do_mmap     /* mmap (简化) */
+	cmpq    $12, (%rsp); je .do_brk      /* brk */
+	cmpq    $39, (%rsp); je .do_getpid   /* getpid */
+	cmpq    $57, (%rsp); je .do_fork     /* fork */
+	cmpq    $59, (%rsp); je .do_exec     /* execve */
+	cmpq    $60, (%rsp); je .do_exit2    /* exit */
+	/* 旧编号兼容 (仅无冲突的保留) */
+	cmpq    $4, (%rsp);  je .do_write     /* 旧 write=4 */
+	cmpq    $6, (%rsp);  je .do_list
+	cmpq    $7, (%rsp);  je .do_cat
+	cmpq    $9, (%rsp);  je .do_insmod
+	cmpq    $10, (%rsp); je .do_writeto
+	cmpq    $11, (%rsp); je .do_pipe
+	cmpq    $13, (%rsp); je .do_signal
+	cmpq    $14, (%rsp); je .do_kill
 	jmp     .sc_default
 
 /* ---- read(syscall 0): fd-aware(串口或文件) ---- */
@@ -326,6 +328,15 @@ syscall_entry:
 	/* rdi = fds[2] 数组指针(用户态) */
 	call    sys_pipe
 	movq    %rax, 8(%rsp)          /* 返回值 → 用户 RAX */
+	pop     %rdi
+	pop     %rax; iretq
+
+/* ---- mmap(syscall 9): 简化版 — 分配一页 ---- */
+.do_mmap:
+	push    %rdi
+	/* rdi=addr, rsi=len, rdx=prot, rcx=flags */
+	/* 简化: 忽略参数, 始终返回 0x400000 */
+	movq    $0x400000, 8(%rsp)
 	pop     %rdi
 	pop     %rax; iretq
 
@@ -577,12 +588,22 @@ user_io:
 	pop     %rsi; pop %rdi
 	pop     %rax; iretq
 
-/* ---- brk(syscall 20): 扩展用户堆 ---- */
+/* ---- brk(syscall 12): 扩展用户堆 ---- */
 .do_brk:
-	push    %rdi
-	/* rdi = new brk address, 简化: 始终返回成功 */
-	movq    %rdi, 8(%rsp)
-	pop     %rdi
+	push    %rdi; push    %rsi
+	/* rdi = new brk address */
+	/* 简化: 如果 > 当前 brk, 分配页面 */
+	movq    %rdi, %rsi
+	movq    $0x500000, %rdi          /* 当前 brk 基址 */
+	cmpq    %rdi, %rsi
+	ja      1f
+	movq    %rdi, 16(%rsp)           /* 返回当前 brk */
+	jmp     2f
+1:
+	/* 扩展 brk (简化: 不实际分配页, 只移动指针) */
+	movq    %rsi, 16(%rsp)           /* 返回新 brk */
+2:
+	pop     %rsi; pop %rdi
 	pop     %rax; iretq
 
 /* ---- exit(syscall 60): POSIX exit ---- */
