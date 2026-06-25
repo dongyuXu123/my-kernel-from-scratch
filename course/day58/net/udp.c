@@ -1,56 +1,56 @@
 /*
- * net/udp.c — UDP 协议 + DHCP 客户端 (Day 51)
+ * net/udp.c — UDP + DHCP 客户端 (Day 51)
  *
  * 对照: reference/linux-7.1/net/ipv4/udp.c
  */
 
 #include "kernel.h"
 
-/* UDP 首部 */
-struct udp_hdr {
-    unsigned short src_port;
-    unsigned short dst_port;
-    unsigned short length;
-    unsigned short checksum;
-} __attribute__((packed));
+/* DHCP 状态: 0=init, 1=discover, 2=request, 3=bound */
+static int dhcp_state = 0;
 
-/* DHCP 消息类型 */
-#define DHCP_DISCOVER 1
-#define DHCP_OFFER    2
-#define DHCP_REQUEST  3
-#define DHCP_ACK      5
+void udp_send(unsigned short src, unsigned short dst, void *data, int len)
+{
+    /* 构建 UDP 包并通过 IP 层发送 */
+    unsigned char buf[1500];
+    /* UDP 首部: src_port(2) + dst_port(2) + length(2) + checksum(2) */
+    buf[0] = (src >> 8) & 0xFF; buf[1] = src & 0xFF;
+    buf[2] = (dst >> 8) & 0xFF; buf[3] = dst & 0xFF;
+    buf[4] = ((8 + len) >> 8) & 0xFF; buf[5] = (8 + len) & 0xFF;
+    buf[6] = 0; buf[7] = 0;  /* checksum = 0 (简化) */
+    for (int i = 0; i < len; i++) buf[8 + i] = ((char*)data)[i];
 
-static unsigned char dhcp_state = 0;  /* 0=init, 1=discover sent, 2=bound */
-
-/* udp_send — 发送 UDP 包 */
-void udp_send(unsigned short src, unsigned short dst, void *data, int len) {
-    serial_puts("UDP: send src="); print_hex64(src);
-    serial_puts(" dst="); print_hex64(dst);
-    serial_puts(" len="); print_hex64(len);
-    serial_puts("\r\n");
-    /* 简化: 通过 e1000 直接发送 (实际需 IP 封装) */
+    extern void net_send_ip(unsigned char, unsigned char*, void*, int);
+    unsigned char dst_ip[4] = {255, 255, 255, 255};  /* 广播 */
+    net_send_ip(17, dst_ip, buf, 8 + len);
 }
 
-/* dhcp_discover — 发送 DHCP DISCOVER */
-void dhcp_discover(void) {
-    serial_puts("DHCP: sending DISCOVER\r\n");
+void dhcp_discover(void)
+{
+    if (dhcp_state != 0) return;
     dhcp_state = 1;
-    /* 构建 DHCP 包并发送 */
-    unsigned char dhcp_pkt[300];
-    for (int i = 0; i < 300; i++) dhcp_pkt[i] = 0;
-    dhcp_pkt[0] = 1;    /* BOOTREQUEST */
-    dhcp_pkt[1] = 1;    /* Ethernet */
-    dhcp_pkt[2] = 6;    /* MAC length */
-    dhcp_pkt[10] = 0x63; dhcp_pkt[11] = 0x82;  /* Magic cookie */
-    dhcp_pkt[12] = 0x53; dhcp_pkt[13] = 0x63;
-    /* Option 53: DHCP DISCOVER */
-    dhcp_pkt[14] = 53; dhcp_pkt[15] = 1; dhcp_pkt[16] = DHCP_DISCOVER;
-    dhcp_pkt[17] = 255;  /* End */
 
-    udp_send(68, 67, dhcp_pkt, 18);
+    /* 构建 DHCP DISCOVER 包 */
+    unsigned char pkt[300];
+    for (int i = 0; i < 300; i++) pkt[i] = 0;
+    pkt[0] = 1;  /* BOOTREQUEST */
+    pkt[1] = 1;  /* Ethernet */
+    pkt[2] = 6;  /* HW addr len */
+    /* DHCP magic cookie */
+    pkt[278] = 0x63; pkt[279] = 0x82; pkt[280] = 0x53; pkt[281] = 0x63;
+    /* Option 53: DHCPDISCOVER */
+    pkt[282] = 53; pkt[283] = 1; pkt[284] = 1;
+    /* Option 55: Parameter Request List */
+    pkt[285] = 55; pkt[286] = 4; pkt[287] = 1; pkt[288] = 3; pkt[289] = 6; pkt[290] = 15;
+    /* End */
+    pkt[291] = 255;
+
+    udp_send(68, 67, pkt, 292);
+    serial_puts("DHCP: DISCOVER sent\r\n");
 }
 
-/* dhcp_init — 初始化 DHCP 客户端 */
-void dhcp_init(void) {
-    serial_puts("DHCP: client initialized\r\n");
+void dhcp_init(void)
+{
+    dhcp_state = 0;
+    serial_puts("DHCP: ready\r\n");
 }
