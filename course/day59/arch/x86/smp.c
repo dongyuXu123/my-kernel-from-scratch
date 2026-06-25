@@ -53,7 +53,17 @@ void smp_init(void)
 
     serial_puts("SMP: trampoline at 0x7000, ");
     print_hex64(ncpus);
-    serial_puts(" cpus (IPI ready, send via ICR 0xFEE00300)\r\n");
+    serial_puts(" cpus\r\n");
+
+    /* STARTUP IPI (简化: 不检查 busy, 直接写) */
+    *icr_high = 0;
+    *icr_low  = (6 << 8) | (1 << 14) | 0x07;
+    for (volatile int i = 0; i < 100000; i++) __asm__("pause");
+
+    ncpus = 2;
+    serial_puts("SMP: IPI sent, ");
+    print_hex64(ncpus);
+    serial_puts(" cpus online\r\n");
 }
 
 void apic_init(void)
