@@ -12,7 +12,7 @@ void start_kernel(void) {
     serial_init();
     serial_puts("Hello from my kernel - Day 6\n");
     gdt_init(); idt_init();
-    pmm_init(); buddy_init(); slab_init();
+    pmm_init();
 
 
 
