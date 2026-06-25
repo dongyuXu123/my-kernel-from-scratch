@@ -46,8 +46,13 @@ pf_handler:
 	call    handle_cow_fault          /* 尝试 COW 处理 */
 	testq   %rax, %rax
 	jz      .pf_done                  /* COW 成功 → 返回重试 */
-	/* COW 未处理 → 打印 CR2 + '#' (保持原有调试行为) */
+	/* COW 未处理 → 已知问题: 静默忽略 kernel page walk PF */
 	movq    %cr2, %rax
+	cmpq    $0x200000, %rax
+	jb      .pf_print
+	cmpq    $0x201000, %rax
+	jb      .pf_done                  /* 0x200000-0x200FFF: 已知 TLB 问题, 忽略 */
+.pf_print:
 	call    print_hex64_pf
 	movw    $0x3FD, %dx
 .wait_pf: inb %dx, %al; testb $0x20, %al; jz .wait_pf
