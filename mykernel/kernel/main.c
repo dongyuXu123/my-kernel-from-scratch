@@ -149,7 +149,11 @@ void start_kernel(void)
     extern void e1000_init(void);
     e1000_init();
 
-    /* TCP 服务器模式 (监听 port 80) */
+    /* ARP 请求网关 MAC */
+    extern void arp_request(void);
+    arp_request();
+
+    /* TCP 服务器模式 */
     extern void tcp_listen(void);
     tcp_listen();
 

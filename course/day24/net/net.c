@@ -76,6 +76,9 @@ static void arp_reply(void *packet)
     for (int i = 0; i < 4; i++)
         if (arp->tpa[i] != my_ip[i]) return;
 
+    /* 学习发送方 MAC */
+    for (int i = 0; i < 6; i++) gw_mac[i] = arp->sha[i];
+
     /* 构建 ARP 应答 */
     char reply[64];
     struct eth_hdr *reth = (struct eth_hdr *)reply;
@@ -95,6 +98,30 @@ static void arp_reply(void *packet)
 
     e1000_send_packet(reply, sizeof(struct eth_hdr) + sizeof(struct arp_hdr));
     serial_puts("ARP: reply sent\r\n");
+}
+
+/* arp_request — 发送 ARP 请求获取网关 MAC */
+void arp_request(void)
+{
+    char pkt[64];
+    struct eth_hdr *eth = (struct eth_hdr *)pkt;
+    struct arp_hdr *arp = (struct arp_hdr *)(eth + 1);
+
+    /* 广播以太网帧 */
+    for (int i = 0; i < 6; i++) eth->dst[i] = 0xFF;
+    for (int i = 0; i < 6; i++) eth->src[i] = my_mac[i];
+    eth->ethertype = swap16(ETHERTYPE_ARP);
+
+    arp->htype = swap16(1); arp->ptype = swap16(ETHERTYPE_IP);
+    arp->hlen = 6; arp->plen = 4;
+    arp->oper = swap16(ARP_REQUEST);
+    for (int i = 0; i < 6; i++) arp->sha[i] = my_mac[i];
+    for (int i = 0; i < 4; i++) arp->spa[i] = my_ip[i];
+    for (int i = 0; i < 6; i++) arp->tha[i] = 0;
+    for (int i = 0; i < 4; i++) arp->tpa[i] = gw_ip[i];
+
+    e1000_send_packet(pkt, sizeof(struct eth_hdr) + sizeof(struct arp_hdr));
+    serial_puts("ARP: request sent for 10.0.2.2\r\n");
 }
 
 /* ================================================================
