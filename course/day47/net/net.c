@@ -10,7 +10,7 @@
 static unsigned char my_mac[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
 static unsigned char my_ip[4]  = {10, 0, 2, 15};
 static unsigned char gw_ip[4]  = {10, 0, 2, 2};
-static unsigned char gw_mac[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x57}; /* 默认，实际需 ARP */
+static unsigned char gw_mac[6] = {0x52, 0x55, 0x0a, 0x00, 0x02, 0x02}; /* QEMU slirp gateway */
 
 /* e1000 接口 */
 extern int e1000_send_packet(void *data, int len);

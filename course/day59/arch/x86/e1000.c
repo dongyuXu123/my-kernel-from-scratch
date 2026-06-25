@@ -51,10 +51,11 @@ static int e1000_probe(struct device *dev)
         if (!(mr(0x0000) & (1 << 26))) break;
     serial_puts("e1000: reset ok\r\n");
 
-    /* MAC — 写入 RAL/RAH */
-    mw(0x5400, 0x12005452);  /* RAL = MAC bytes 0-3 (52:54:00:12) */
-    mw(0x5404, 0x00005634 | 0x80000000);  /* RAH = MAC bytes 4-5 (34:56) + AV=1 */
-    serial_puts("e1000: MAC 52:54:00:12:34:56 AV set\r\n");
+    /* MAC — 使用 EEPROM 默认值 (不覆盖) */
+    unsigned int ral = mr(0x5400), rah = mr(0x5404);
+    serial_puts("e1000: MAC ");
+    print_hex64(ral); serial_puts(" "); print_hex64(rah);
+    serial_puts("\r\n");
 
     /* TX 环 */
     tx = alloc_pages(0);
