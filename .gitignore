@@ -23,3 +23,10 @@ reference/linux-7.1/
 
 # QEMU artifacts
 /tmp/
+
+# Build artifacts (keep out of repo)
+mykernel.elf
+*.o
+
+# Reference kernel (clone separately)
+reference/
