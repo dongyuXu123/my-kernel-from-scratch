@@ -35,23 +35,29 @@ int3_handler:
     iretq
 
 /*
- * #PF handler(向量 14, 有 error code)
+ * #PF handler(向量 14, 有 error code) — Day 46: COW 支持
+ *
+ * 对照: reference/linux-7.1/arch/x86/mm/fault.c (do_page_fault)
  */
-.globl pf_handler
+	.globl pf_handler
 pf_handler:
-    push    %rax
-    push    %rdx
-    movq    %cr2, %rax
-    call    print_hex64_pf          /* 打印 CR2 */
-    movw    $0x3FD, %dx
+	push    %rax; push    %rdx; push    %rdi; push    %rsi
+	movq    %cr2, %rdi
+	call    handle_cow_fault          /* 尝试 COW 处理 */
+	testq   %rax, %rax
+	jz      .pf_done                  /* COW 成功 → 返回重试 */
+	/* COW 未处理 → 打印 CR2 + '#' (保持原有调试行为) */
+	movq    %cr2, %rax
+	call    print_hex64_pf
+	movw    $0x3FD, %dx
 .wait_pf: inb %dx, %al; testb $0x20, %al; jz .wait_pf
-    movb    $'#', %al
-    movw    $0x3F8, %dx
-    outb    %al, %dx
-    pop     %rdx
-    pop     %rax
-    pop     %rax                    /* error code */
-    iretq
+	movb    $'#', %al
+	movw    $0x3F8, %dx
+	outb    %al, %dx
+.pf_done:
+	pop     %rsi; pop %rdi; pop %rdx; pop %rax
+	pop     %rax                    /* error code */
+	iretq
 
 /*
  * #GP handler(向量 13, 有 error code)
@@ -221,6 +227,9 @@ syscall_entry:
 	    movq    %rsp, 0x180000          /* 父 RSP → mailbox */
 	    movq    %cr3, %rax
 	    movq    %rax, 0x181010          /* 父 CR3 → mailbox */
+
+	    /* Day 46: COW — 标记用户页只读, 增加引用计数 */
+	    call    cow_fork_handler
 
 	    /* 父返回 2 */
 	    movq    $2, 24(%rsp)
@@ -416,6 +425,9 @@ timer_handler:
 
 	incq    timer_ticks(%rip)
 	movb    $0x20, %al; outb %al, $0x20  /* EOI */
+
+	/* 每 tick 轮询 e1000 RX */
+	call    e1000_poll
 
 	/* 每 10 ticks 做一次调度 (100Hz → 10Hz 调度频率) */
 	movq    timer_ticks(%rip), %rdx

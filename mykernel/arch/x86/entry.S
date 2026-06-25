@@ -426,6 +426,9 @@ timer_handler:
 	incq    timer_ticks(%rip)
 	movb    $0x20, %al; outb %al, $0x20  /* EOI */
 
+	/* 每 tick 轮询 e1000 RX */
+	call    e1000_poll
+
 	/* 每 10 ticks 做一次调度 (100Hz → 10Hz 调度频率) */
 	movq    timer_ticks(%rip), %rdx
 	andq    $0x07, %rdx                  /* ticks % 8 != 0 → 跳过 */

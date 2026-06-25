@@ -149,6 +149,10 @@ void start_kernel(void)
     extern void e1000_init(void);
     e1000_init();
 
+    /* TCP 连接测试 */
+    extern void tcp_connect(void);
+    tcp_connect();
+
     /* ramfs */
     ramfs_init();
     ramfs_create("hello.txt");

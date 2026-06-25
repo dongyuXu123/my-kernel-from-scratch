@@ -125,6 +125,8 @@ void start_kernel(void)
 
     gdt_init(); idt_init();
     pmm_init(); buddy_init(); slab_init(); setup_pagetables();
+    extern void cow_setup(void);
+    cow_setup();  /* Day 46: COW 初始化 */
     sched_init(); tss_init();
 
     /* 初始化定时器(PIC + PIT) */
@@ -146,6 +148,10 @@ void start_kernel(void)
     /* e1000 初始化 */
     extern void e1000_init(void);
     e1000_init();
+
+    /* TCP 连接测试 */
+    extern void tcp_connect(void);
+    tcp_connect();
 
     /* ramfs */
     ramfs_init();
