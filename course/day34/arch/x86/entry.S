@@ -135,6 +135,30 @@ serial_putchar_asm:
 	ret
 
 /* ================================================================
+ * syscall64 入口 (syscall 指令 → LSTAR)
+ *
+ * 对照: reference/linux-7.1/arch/x86/entry/entry_64.S (entry_SYSCALL_64)
+ *
+ * syscall: RCX=返回RIP, R11=保存RFLAGS, 不切换栈
+ * 处理: 切到内核栈, 模拟 int $0x80 栈帧, 跳转到 syscall_entry 分发
+ * ================================================================ */
+	.globl syscall64_entry
+syscall64_entry:
+	/* 切换到内核栈并构建 int $0x80 兼容栈帧 */
+	movq    %rsp, %r10                /* 保存用户 RSP */
+	leaq    stack_top(%rip), %rsp     /* 内核栈 */
+
+	pushq   $0x23                     /* SS */
+	pushq   %r10                      /* 用户 RSP */
+	pushq   %r11                      /* RFLAGS */
+	pushq   $0x1B                     /* CS */
+	pushq   %rcx                      /* 用户 RIP */
+	pushq   %rax                      /* syscall 号 (与 int $0x80 对齐) */
+
+	/* 跳转到 int $0x80 分发逻辑 (跳过 push %rax) */
+	jmp     .sc_dispatch
+
+/* ================================================================
  * syscall 入口(int $0x80, DPL=3)
  *
  * 进入时栈上(CPU 自动压入):
@@ -144,9 +168,10 @@ serial_putchar_asm:
  *   0=read, 1=write, 2=open, 3=close, 8=lseek, 9=mmap, 12=brk
  *   39=getpid, 57=fork, 59=execve, 60=exit
  * ================================================================ */
-	.globl syscall_entry
+		.globl syscall_entry
 syscall_entry:
 	push    %rax
+.sc_dispatch:
 	/* Linux-compatible dispatch */
 	cmpq    $0, (%rsp);  je .do_read     /* read */
 	cmpq    $1, (%rsp);  je .do_write    /* write */

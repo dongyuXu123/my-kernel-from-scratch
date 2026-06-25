@@ -129,17 +129,34 @@ read_msr:
 
 /*
  * enter_user_mode_asm(rip) — 从内核切到 ring3
+ *
+ * 对照: reference/linux-7.1/arch/x86/entry/entry_64.S
+ *
  * rip in %rdi(用户代码入口地址)
  */
 	.globl enter_user_mode_asm
 enter_user_mode_asm:
-	/* 禁用用户态 CET (避免 endbr64 指令 #GP) */
+	/* 设置 syscall MSR (BusyBox/glibc 使用 syscall 指令) */
 	pushq   %rcx
 	pushq   %rax
-	movl    $0x6A0, %ecx             /* IA32_U_CET */
-	xorl    %eax, %eax
+	pushq   %rdx
+	/* IA32_STAR (0xC0000081): CS=0x08 (kernel), SS=0x10 (kernel data) */
+	movl    $0xC0000081, %ecx
+	movl    $0x00100008, %eax          /* kernel CS base after syscall */
 	xorl    %edx, %edx
 	wrmsr
+	/* IA32_LSTAR (0xC0000082): syscall handler entry */
+	movl    $0xC0000082, %ecx
+	leaq    syscall_entry(%rip), %rax
+	movq    %rax, %rdx
+	shrq    $32, %rdx
+	wrmsr
+	/* IA32_SF_MASK (0xC0000084): clear IF on syscall */
+	movl    $0xC0000084, %ecx
+	movl    $0x200, %eax               /* mask IF bit */
+	xorl    %edx, %edx
+	wrmsr
+	popq    %rdx
 	popq    %rax
 	popq    %rcx
 
