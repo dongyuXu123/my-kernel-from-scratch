@@ -1,13 +1,5 @@
-/*
- * arch/x86/desktop.c — 桌面环境
- *
- * 对照: (无直接对照 — Desktop Metaphor, Xerox PARC 1970s)
- */
-/*
- * arch/x86/desktop.c — 桌面环境
- *
- * 对照: (无直接对照 — Desktop Metaphor, Xerox PARC 1970s)
- */
+/* arch/x86/desktop.c — 桌面环境 (Day 34 GUI-4)
+ * 任务栏、时钟、应用启动器
  */
 #include "kernel.h"
 

@@ -1,13 +1,5 @@
-/*
- * arch/x86/widget.c — GUI 控件
- *
- * 对照: (无直接对照 — 参考 GTK/Qt Widget 模型)
- */
-/*
- * arch/x86/widget.c — GUI 控件
- *
- * 对照: (无直接对照 — 参考 GTK/Qt Widget 模型)
- */
+/* arch/x86/widget.c — GUI 控件 (Day 33 GUI-3)
+ * 按钮、标签、文本框控件
  */
 #include "kernel.h"
 

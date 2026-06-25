@@ -1,23 +1,7 @@
-/*
- * arch/x86/mouse.c — PS/2 鼠标驱动
- *
- * 对照: OSDev Wiki PS/2 Mouse + tinywm (github.com/mackstann/tinywm)
- */
-/*
- * arch/x86/mouse.c — PS/2 鼠标驱动
- *
- * 对照: OSDev Wiki PS/2 Mouse + tinywm (github.com/mackstann/tinywm)
- */
-/*
- * arch/x86/mouse.c — PS/2 鼠标驱动
- *
- * 对照: OSDev Wiki PS/2 Mouse + tinywm (github.com/mackstann/tinywm)
- */
-/*
- * arch/x86/mouse.c — PS/2 鼠标驱动
- *
- * 对照: OSDev Wiki PS/2 Mouse + tinywm (github.com/mackstann/tinywm)
- */
+/* arch/x86/mouse.c — PS/2 鼠标驱动 (Day 31 GUI-1)
+ * 参考: tinywm (github.com/mackstann/tinywm) 的 X11 事件处理概念
+ * 端口: 0x60=数据, 0x64=状态/命令
+ * 包格式: byte1(buttons|dxsign|dysign|dxhi|dyhi), byte2(dx), byte3(dy)
  */
 #include "kernel.h"
 

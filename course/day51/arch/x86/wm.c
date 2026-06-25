@@ -1,18 +1,6 @@
-/*
- * arch/x86/wm.c — 窗口管理器
- *
- * 对照: tinywm (github.com/mackstann/tinywm) X11 Window Manager 概念
- */
-/*
- * arch/x86/wm.c — 窗口管理器
- *
- * 对照: tinywm (github.com/mackstann/tinywm) X11 Window Manager 概念
- */
-/*
- * arch/x86/wm.c — 窗口管理器
- *
- * 对照: tinywm (github.com/mackstann/tinywm) X11 Window Manager 概念
- */
+/* arch/x86/wm.c — 窗口管理器 (Day 32 GUI-2) 
+ * 参考: tinywm 的 move/resize/raise 概念
+ * 直接在 framebuffer 上绘制窗口，无 X11
  */
 #include "kernel.h"
 
