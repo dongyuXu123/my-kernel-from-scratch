@@ -187,7 +187,7 @@ void start_kernel(void)
     /* ---- GUI 初始化 ---- */
     extern unsigned int *fb;
     extern int wm_create_window(int,int,int,int,const char*);
-    int console_boot = 1;  /* 1=busybox, 0=GUI */
+    int console_boot = 0;  /* 1=busybox, 0=GUI */
 
     /* Framebuffer */
     fb_init();

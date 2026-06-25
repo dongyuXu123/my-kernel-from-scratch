@@ -145,9 +145,9 @@ enter_user_mode_asm:
 	movl    $0x00100008, %eax          /* kernel CS base after syscall */
 	xorl    %edx, %edx
 	wrmsr
-	/* IA32_LSTAR (0xC0000082): syscall handler entry */
+	/* IA32_LSTAR (0xC0000082): syscall handler — 指向 syscall64_entry */
 	movl    $0xC0000082, %ecx
-	leaq    syscall_entry(%rip), %rax
+	leaq    syscall64_entry(%rip), %rax
 	movq    %rax, %rdx
 	shrq    $32, %rdx
 	wrmsr
