@@ -121,7 +121,7 @@ static void gui_loop(void)
 void start_kernel(void)
 {
     serial_init();
-    serial_puts("Hello from my kernel\r\n");
+    serial_puts("Hello from my kernel - Day 47\r\n");
 
     gdt_init(); idt_init();
     pmm_init(); setup_pagetables(); buddy_init(); slab_init();
