@@ -125,6 +125,7 @@ void start_kernel(void)
 
     gdt_init(); idt_init();
     pmm_init(); setup_pagetables(); buddy_init(); slab_init();
+    cow_setup();
     extern void cow_setup(void);
     cow_setup();  /* Day 46: COW 初始化 */
     sched_init(); tss_init();

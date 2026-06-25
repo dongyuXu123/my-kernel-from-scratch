@@ -9,9 +9,10 @@ extern void setup_pagetables(void), cow_setup(void);
 
 void start_kernel(void) {
     serial_init();
-    serial_puts("Hello from my kernel - Day 10\\n");
+    serial_puts("Hello from my kernel - Day 10\n");
     gdt_init(); idt_init();
     pmm_init(); buddy_init(); slab_init();
     setup_pagetables(); cow_setup();
+    cow_setup();
     while (1) __asm__ volatile ("hlt");
 }

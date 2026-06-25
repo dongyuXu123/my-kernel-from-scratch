@@ -8,7 +8,7 @@ extern void pmm_init(void), buddy_init(void), slab_init(void);
 
 void start_kernel(void) {
     serial_init();
-    serial_puts("Hello from my kernel - Day 6\\n");
+    serial_puts("Hello from my kernel - Day 6\n");
     gdt_init(); idt_init();
     pmm_init();
     while (1) __asm__ volatile ("hlt");

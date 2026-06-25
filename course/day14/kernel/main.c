@@ -11,10 +11,11 @@ extern void tss_init(void), enter_user_mode_asm(void *);
 
 void start_kernel(void) {
     serial_init();
-    serial_puts("Hello from my kernel - Day 14\\n");
+    serial_puts("Hello from my kernel - Day 14\n");
     gdt_init(); idt_init();
     pmm_init(); buddy_init(); slab_init();
     setup_pagetables(); cow_setup();
+    cow_setup();
     sched_init();
     tss_init();
     while (1) __asm__ volatile ("hlt");
