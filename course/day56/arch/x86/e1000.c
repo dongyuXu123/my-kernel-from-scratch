@@ -51,25 +51,23 @@ static int e1000_probe(struct device *dev)
         if (!(mr(0x0000) & (1 << 26))) break;
     serial_puts("e1000: reset ok\r\n");
 
-    /* MAC — 写入 RAL/RAH 并设置 Address Valid */
-    unsigned int ral = mr(0x5400), rah = mr(0x5404);
-    mw(0x5404, rah | 0x80000000);  /* RAH.AV=1 (Address Valid) */
-    serial_puts("e1000: MAC=");
-    for (int i = 0; i < 4; i++) print_hex64(((unsigned char *)&ral)[i]);
-    serial_puts(":"); for (int i = 0; i < 2; i++) print_hex64(((unsigned char *)&rah)[i]);
-    serial_puts(" AV set\r\n");
+    /* MAC — 写入 RAL/RAH */
+    mw(0x5400, 0x12005452);  /* RAL = MAC bytes 0-3 (52:54:00:12) */
+    mw(0x5404, 0x00005634 | 0x80000000);  /* RAH = MAC bytes 4-5 (34:56) + AV=1 */
+    serial_puts("e1000: MAC 52:54:00:12:34:56 AV set\r\n");
 
     /* TX 环 */
     tx = alloc_pages(0);
     for (int i = 0; i < ND; i++) { txb[i] = alloc_pages(0); tx[i].a = 0; tx[i].cmd = 0; tx[i].sta = 0; }
     mw(0x3800, (unsigned long)tx); mw(0x3804, 0); mw(0x3808, ND * 16); mw(0x3810, 0); mw(0x3818, 0);
-    mw(0x0400, mr(0x0400) | (1 << 1) | (1 << 3));
+    mw(0x0400, (1 << 1) | (1 << 3));  /* TCTL: EN=1, PSP=1 */
 
     /* RX 环 */
     rx = alloc_pages(0);
     for (int i = 0; i < ND; i++) { rxb[i] = alloc_pages(0); rx[i].a = (unsigned long)rxb[i]; rx[i].st = 0; }
     mw(0x2800, (unsigned long)rx); mw(0x2804, 0); mw(0x2808, ND * 16); mw(0x2810, 0); mw(0x2818, ND - 1);
-    mw(0x0100, mr(0x0100) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 15));
+    /* RCTL: RXEN + SBP + UPE + MPE + BSEX + BSIZE=00 */
+    mw(0x0100, (1<<1)|(1<<2)|(1<<3)|(1<<4)|(1<<15));
 
     /* 发送测试包 */
     char *pkt = txb[0];
@@ -98,11 +96,24 @@ void e1000_poll(void)
 {
     if (!e1000_found || !rx) return;
     extern void net_poll(void *, int);
-    static int tail;
+    static int tail, poll_cnt;
     unsigned int rdh = mr(0x2810);
+    
+    poll_cnt++;
+    if (poll_cnt == 1) {
+        serial_puts("e1000: RX poll started, rdh=");
+        print_hex64(rdh);
+        serial_puts(" tail=");
+        print_hex64(tail);
+        serial_puts("\r\n");
+    }
+    
     while (tail != (int)rdh) {
         struct rx_desc *d = &rx[tail];
         if (!(d->st & 0x01)) break;
+        serial_puts("e1000: RX packet! len=");
+        print_hex64(d->l);
+        serial_puts("\r\n");
         net_poll(rxb[tail], (int)d->l);
         d->st = 0;
         tail = (tail + 1) % ND;

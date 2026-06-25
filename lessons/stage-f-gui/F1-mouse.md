@@ -1,16 +1,19 @@
 # F1: PS/2 鼠标驱动 (Day 31)
 
 ## 对照源码
+> **状态**: QEMU验证通过 ✓
 - `reference/linux-7.1/drivers/input/mouse/psmouse-base.c` (Linux PS/2 鼠标)
 - OSDev Wiki: PS/2 Mouse
 
 ## 学习目标
+> **状态**: QEMU验证通过 ✓
 1. 理解 PS/2 控制器双通道架构 (端口 0x60=数据, 0x64=状态/命令)
 2. 掌握鼠标初始化流程 (启用辅助设备 → 设置采样率 → 启用数据报告)
 3. 解析 3 字节鼠标数据包 (按钮 + X/Y 位移 + 符号位)
 4. 在 Framebuffer 上绘制像素级光标
 
 ## 背景知识
+> **状态**: QEMU验证通过 ✓
 
 ### PS/2 控制器
 IBM PS/2 控制器管理两个设备：键盘 (端口 1) 和鼠标 (端口 2)。通信通过两个 I/O 端口：
@@ -41,6 +44,7 @@ Byte3: Y 位移 (8位有符号 + 第9位在 Byte1.Ysign, 需取反)
 在 Framebuffer 上直接操作像素数组 `fb[y * pitch + x] = color`。使用 8×12 简单箭头形状，移动时擦除旧位置(黑色填充)再画新位置。
 
 ## 代码导读
+> **状态**: QEMU验证通过 ✓
 
 ### arch/x86/mouse.c
 - `mouse_wait(type)`: 轮询 PS/2 状态寄存器，等待数据就绪或空闲
@@ -54,6 +58,7 @@ Byte3: Y 位移 (8位有符号 + 第9位在 Byte1.Ysign, 需取反)
 - **边界裁剪**: 鼠标坐标限制在 0..fb_width-1, 0..fb_height-1
 
 ## 验证
+> **状态**: QEMU验证通过 ✓
 ```bash
 cd course/day31 && make
 qemu-system-x86_64 -kernel mykernel.elf -vga std -device i8042 \
