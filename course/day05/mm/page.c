@@ -161,36 +161,38 @@ void cow_fork_handler(void)
     serial_puts(" pages read-only\r\n");
 }
 
-/* handle_cow_fault — #PF 时处理 COW */
+/* handle_cow_fault — #PF 时处理 COW + 按需映射 */
 int handle_cow_fault(unsigned long cr2)
 {
-    if (!cow_pt) return -1;
-    if (cr2 < COW_START_VA || cr2 >= COW_START_VA + COW_PAGES * 0x1000)
+    /* COW 处理 */
+    if (cow_pt && cr2 >= COW_START_VA && cr2 < COW_START_VA + COW_PAGES * 0x1000) {
+        int page_idx = (cr2 - 0x200000) / 0x1000 - COW_PTE_BASE;
+        if (page_idx >= 0 && page_idx < COW_PAGES && cow_refs[page_idx] > 1) {
+            int pte_idx = COW_PTE_BASE + page_idx;
+            unsigned long old_phys = cow_pt[pte_idx] & ~0xFFFUL;
+            extern void *alloc_page(void);
+            unsigned long *np = (unsigned long *)alloc_page();
+            if (!np) return -1;
+            unsigned long *op = (unsigned long *)old_phys;
+            for (int i = 0; i < 512; i++) np[i] = op[i];
+            cow_pt[pte_idx] = (unsigned long)np | 0x07;
+            cow_refs[page_idx]--;
+            write_cr3((unsigned long)pml4);
+            return 0;
+        }
         return -1;
+    }
 
-    int page_idx = (cr2 - 0x200000) / 0x1000 - COW_PTE_BASE;
-    if (page_idx < 0 || page_idx >= COW_PAGES) return -1;
-    if (cow_refs[page_idx] <= 1) return -1;  /* 已独占 */
+    /* 按需映射: 用户堆/glibc区域 (2MB 大页) */
+    if (cr2 >= 0x500000 && cr2 < 0x8000000) {
+        unsigned long base = cr2 & ~0x1FFFFFUL;
+        unsigned long pd_idx = base >> 21;
+        if (pd_idx < 64 && (pd[pd_idx] & 1) == 0) {
+            pd[pd_idx] = base | 0x87;
+            write_cr3((unsigned long)pml4);
+        }
+        return 0;
+    }
 
-    int pte_idx = COW_PTE_BASE + page_idx;
-    unsigned long old_phys = cow_pt[pte_idx] & ~0xFFFUL;
-
-    /* 分配新页 + 拷贝 */
-    extern void *alloc_page(void);
-    unsigned long *new_page = (unsigned long *)alloc_page();
-    if (!new_page) return -1;
-
-    unsigned long *old_page = (unsigned long *)old_phys;
-    for (int i = 0; i < 512; i++) new_page[i] = old_page[i];
-
-    cow_pt[pte_idx] = (unsigned long)new_page | 0x07;
-    cow_refs[page_idx]--;
-    write_cr3((unsigned long)pml4);
-
-    serial_puts("cow: page ");
-    print_hex64(page_idx);
-    serial_puts(" copied, ref=");
-    print_hex64(cow_refs[page_idx]);
-    serial_puts("\r\n");
-    return 0;
+    return -1;
 }

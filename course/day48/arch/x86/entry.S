@@ -361,12 +361,13 @@ syscall_entry:
 	pop     %rdi
 	pop     %rax; iretq
 
-/* ---- mmap(syscall 9): 简化版 — 分配一页 ---- */
+/* ---- mmap(syscall 9): 简化 — 递增分配页 ---- */
 .do_mmap:
 	push    %rdi
-	/* rdi=addr, rsi=len, rdx=prot, rcx=flags */
-	/* 简化: 忽略参数, 始终返回 0x400000 */
-	movq    $0x400000, 8(%rsp)
+	movq    mmap_next(%rip), %rax
+	addq    $0x1000, %rax
+	movq    %rax, mmap_next(%rip)
+	movq    %rax, 8(%rsp)             /* 返回映射地址 */
 	pop     %rdi
 	pop     %rax; iretq
 
@@ -507,6 +508,10 @@ timer_handler:
 .align 8
 .globl timer_ticks
 timer_ticks: .quad 0
+	.globl user_brk
+user_brk:   .quad 0x559000    /* 初始 brk (BusyBox .bss 结束) */
+	.globl mmap_next
+mmap_next:  .quad 0x600000    /* mmap 分配起始地址 */
 	.globl sched_ready
 sched_ready: .quad 0
 
@@ -627,20 +632,14 @@ user_io:
 
 /* ---- brk(syscall 12): 扩展用户堆 ---- */
 .do_brk:
-	push    %rdi; push    %rsi
-	/* rdi = new brk address */
-	/* 简化: 如果 > 当前 brk, 分配页面 */
-	movq    %rdi, %rsi
-	movq    $0x500000, %rdi          /* 当前 brk 基址 */
-	cmpq    %rdi, %rsi
-	ja      1f
-	movq    %rdi, 16(%rsp)           /* 返回当前 brk */
-	jmp     2f
-1:
-	/* 扩展 brk (简化: 不实际分配页, 只移动指针) */
-	movq    %rsi, 16(%rsp)           /* 返回新 brk */
-2:
-	pop     %rsi; pop %rdi
+	push    %rdi
+	movq    user_brk(%rip), %rax      /* 当前 brk */
+	cmpq    %rax, %rdi
+	jbe     1f                        /* 收缩: 返回当前值 */
+	movq    %rdi, user_brk(%rip)      /* 扩展 */
+1:	movq    user_brk(%rip), %rax
+	movq    %rax, 8(%rsp)
+	pop     %rdi
 	pop     %rax; iretq
 
 /* ---- exit(syscall 60): POSIX exit ---- */
