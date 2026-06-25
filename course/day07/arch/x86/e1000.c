@@ -51,12 +51,13 @@ static int e1000_probe(struct device *dev)
         if (!(mr(0x0000) & (1 << 26))) break;
     serial_puts("e1000: reset ok\r\n");
 
-    /* MAC */
+    /* MAC — 写入 RAL/RAH 并设置 Address Valid */
     unsigned int ral = mr(0x5400), rah = mr(0x5404);
+    mw(0x5404, rah | 0x80000000);  /* RAH.AV=1 (Address Valid) */
     serial_puts("e1000: MAC=");
     for (int i = 0; i < 4; i++) print_hex64(((unsigned char *)&ral)[i]);
     serial_puts(":"); for (int i = 0; i < 2; i++) print_hex64(((unsigned char *)&rah)[i]);
-    serial_puts("\r\n");
+    serial_puts(" AV set\r\n");
 
     /* TX 环 */
     tx = alloc_pages(0);

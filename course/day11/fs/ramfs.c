@@ -88,18 +88,25 @@ int ramfs_write(int fd, const char *buf, int len)
     if (file_table[fd].data)
         kfree(file_table[fd].data);
 
-    /* 分配新缓冲区 */
-    char *new_data = (char *)kmalloc(len);
-    if (!new_data)
-        return -1;
+    if (len <= 0) {
+        file_table[fd].data = 0;
+        file_table[fd].size = 0;
+        return 0;
+    }
+
+    /* 使用 alloc_pages 代替 kmalloc (避免 slab 空闲链表被覆盖) */
+    extern void *alloc_pages(int order);
+    char *new_data = (char *)alloc_pages(0);
+    if (!new_data) return -1;
 
     /* 复制数据 */
-    for (int i = 0; i < len; i++)
+    int copy = (len < 4096) ? len : 4096;
+    for (int i = 0; i < copy; i++)
         new_data[i] = buf[i];
 
     file_table[fd].data = new_data;
-    file_table[fd].size = len;
-    return len;
+    file_table[fd].size = copy;
+    return copy;
 }
 
 /* ================================================================

@@ -187,10 +187,11 @@ void start_kernel(void)
     /* ---- GUI 初始化 ---- */
     extern unsigned int *fb;
     extern int wm_create_window(int,int,int,int,const char*);
-    
+    int console_boot = 1;  /* 1=busybox, 0=GUI */
+
     /* Framebuffer */
     fb_init();
-    if (fb) {
+    if (!console_boot && fb) {
         gui_mode = 1;
         serial_puts("Starting GUI mode...\r\n");
         
