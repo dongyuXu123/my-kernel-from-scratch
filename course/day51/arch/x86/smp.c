@@ -55,7 +55,9 @@ void smp_init(void)
     print_hex64(ncpus);
     serial_puts(" cpus\r\n");
 
-    /* STARTUP IPI (简化: 不检查 busy, 直接写) */
+    /* STARTUP IPI (简化: 直接写) */
+    volatile unsigned int *icr_low  = (unsigned int *)(unsigned long)(APIC_BASE + 0x300);
+    volatile unsigned int *icr_high = (unsigned int *)(unsigned long)(APIC_BASE + 0x310);
     *icr_high = 0;
     *icr_low  = (6 << 8) | (1 << 14) | 0x07;
     for (volatile int i = 0; i < 100000; i++) __asm__("pause");
