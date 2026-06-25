@@ -251,8 +251,6 @@ void start_kernel(void)
         serial_puts(" bytes)...\r\n");
         unsigned long entry = elf_load_mem(busybox_elf_start, (unsigned int)bbsize);
         if (entry) {
-            /* 跳过 endbr64 (4字节 CET 指令), 从 0x4BC2C4 开始 */
-            if (entry == 0x4BC2C0) entry += 4;
             extern unsigned long sched_ready;
             sched_ready = 1;
             serial_puts("BusyBox entry=");

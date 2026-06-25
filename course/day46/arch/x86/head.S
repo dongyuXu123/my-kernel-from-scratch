@@ -160,11 +160,7 @@ enter_user_mode_asm:
 	popq    %rax
 	popq    %rcx
 
-	pushq   $0x23                      /* SS = 用户数据段 */
-	pushq   $0x390000                  /* RSP = 用户栈(3.5MB, 避开 /init) */
-	pushq   $0x3202                    /* RFLAGS(IF=1, IOPL=3) */
-	pushq   $0x1B                      /* CS = 用户代码段 */
-	pushq   %rdi                       /* RIP = 用户入口 */
+	pushq   $0x23; pushq $0x400000; pushq $0x202; pushq $0x1B; pushq %rdi
 	iretq
 
 /* ============================
